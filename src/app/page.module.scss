@@ -1,0 +1,37 @@
+.container {
+  min-height: 100vh;
+  padding: 48px 20px;
+  background: radial-gradient(circle at top, #eef2ff 0%, #f6f8fc 35%, #f3f5f9 100%);
+}
+
+.panel {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e6eaf2;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  padding: 28px;
+}
+
+.tableWrapper {
+  margin-top: 12px;
+}
+
+.modalTitle {
+  margin: 0;
+  color: #000000;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 12px;
+  }
+
+  .panel {
+    border-radius: 14px;
+    padding: 16px;
+  }
+}
