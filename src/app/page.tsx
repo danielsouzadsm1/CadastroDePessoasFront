@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, DatePicker, Form, Input, Modal, Select, Space } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -8,6 +8,8 @@ import { Header } from '@/components/Header';
 import { UserTable } from '@/components/UserTable';
 import { useUsers, type User } from '@/hooks/useUsers';
 import styles from './page.module.scss';
+
+const PAGE_SIZE = 10;
 
 type UserFormValues = {
   nome: string;
@@ -18,18 +20,24 @@ type UserFormValues = {
 
 export default function Page() {
   const [form] = Form.useForm<UserFormValues>();
-  const { users, loading, getUsers, getUserById, createUser, updateUser, deleteUser } = useUsers();
+  const { users, meta, loading, getUsers, createUser, updateUser, deleteUser } = useUsers();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchValue, setSearchValue] = useState('');
-  const [isMounted, setIsMounted] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    getUsers();
-  }, [getUsers]);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    const handler = setTimeout(() => {
+      getUsers({ page: currentPage, perPage: PAGE_SIZE, search: searchValue.trim() });
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [getUsers, currentPage, searchValue]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchValue(value);
+    setCurrentPage(1);
+  };
 
   const normalizePhonesForForm = (phones?: User['telefones']) => {
     const normalized =
@@ -41,14 +49,6 @@ export default function Page() {
 
     return normalized.length > 0 ? normalized : [{ numero: '' }];
   };
-
-
-  const filteredUsers = useMemo(() => {
-    const term = searchValue.trim().toLowerCase();
-    if (!term) return users;
-
-    return users.filter((user) => user.nome.toLowerCase().includes(term));
-  }, [users, searchValue]);
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -95,10 +95,21 @@ export default function Page() {
   return (
     <section className={styles.container}>
       <div className={styles.panel}>
-        <Header onAdd={openCreateModal} searchValue={searchValue} onSearchChange={setSearchValue} />
+        <Header onAdd={openCreateModal} searchValue={searchValue} onSearchChange={handleSearchChange} />
 
         <div className={styles.tableWrapper}>
-          <UserTable data={filteredUsers} loading={loading} onEdit={openEditModal} onDelete={deleteUser} />
+          <UserTable
+            data={users}
+            loading={loading}
+            onEdit={openEditModal}
+            onDelete={deleteUser}
+            pagination={{
+              current: meta.current_page,
+              pageSize: meta.per_page,
+              total: meta.total,
+              onChange: setCurrentPage,
+            }}
+          />
         </div>
       </div>
       {isModalOpen && (

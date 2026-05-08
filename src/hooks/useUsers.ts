@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import api from '@/services/api';
 import { message } from 'antd';
 import { isAxiosError } from 'axios';
@@ -15,9 +15,41 @@ export interface User {
   telefones?: Telefone[];
 }
 
+export interface UsersQuery {
+  page?: number;
+  perPage?: number;
+  search?: string;
+}
+
+export interface UsersMeta {
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+}
+
+interface CacheEntry {
+  users: User[];
+  meta: UsersMeta;
+}
+
+const DEFAULT_META: UsersMeta = {
+  current_page: 1,
+  per_page: 10,
+  total: 0,
+  last_page: 1,
+};
+
+const buildCacheKey = (query: Required<UsersQuery>) =>
+  `${query.page}|${query.perPage}|${query.search}`;
+
 export const useUsers = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [meta, setMeta] = useState<UsersMeta>(DEFAULT_META);
   const [loading, setLoading] = useState<boolean>(false);
+
+  const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
+  const lastQueryRef = useRef<Required<UsersQuery>>({ page: 1, perPage: 10, search: '' });
 
   const getApiErrorMessage = (fallbackMessage: string, error: unknown) => {
     if (isAxiosError(error)) {
@@ -35,11 +67,32 @@ export const useUsers = () => {
     return fallbackMessage;
   };
 
-  const getUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (query: Required<UsersQuery>) => {
+    const key = buildCacheKey(query);
+    const cached = cacheRef.current.get(key);
+
+    if (cached) {
+      setUsers(cached.users);
+      setMeta(cached.meta);
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await api.get('/user');
-      setUsers(response.data.data);
+      const response = await api.get('/user', {
+        params: {
+          page: query.page,
+          per_page: query.perPage,
+          search: query.search || undefined,
+        },
+      });
+
+      const data: User[] = response.data.data;
+      const responseMeta: UsersMeta = response.data.meta ?? DEFAULT_META;
+
+      cacheRef.current.set(key, { users: data, meta: responseMeta });
+      setUsers(data);
+      setMeta(responseMeta);
     } catch (error) {
       message.error(getApiErrorMessage('Erro ao buscar usuários', error));
     } finally {
@@ -47,11 +100,33 @@ export const useUsers = () => {
     }
   }, []);
 
+  const getUsers = useCallback(
+    async (query: UsersQuery = {}) => {
+      const normalized: Required<UsersQuery> = {
+        page: query.page ?? 1,
+        perPage: query.perPage ?? 10,
+        search: query.search ?? '',
+      };
+      lastQueryRef.current = normalized;
+      await fetchUsers(normalized);
+    },
+    [fetchUsers],
+  );
+
+  const invalidateAndRefetch = useCallback(
+    async (query: Required<UsersQuery> = lastQueryRef.current) => {
+      cacheRef.current.clear();
+      lastQueryRef.current = query;
+      await fetchUsers(query);
+    },
+    [fetchUsers],
+  );
+
   const createUser = async (userData: User) => {
     try {
       await api.post('/user', userData);
       message.success('Usuário criado com sucesso!');
-      getUsers();
+      await invalidateAndRefetch({ ...lastQueryRef.current, page: 1 });
     } catch (error) {
       message.error(getApiErrorMessage('Erro ao criar usuário', error));
     }
@@ -61,7 +136,7 @@ export const useUsers = () => {
     try {
       await api.put(`/user/${id}`, userData);
       message.success('Usuário atualizado!');
-      getUsers();
+      await invalidateAndRefetch();
     } catch (error) {
       message.error(getApiErrorMessage('Erro ao atualizar usuário', error));
     }
@@ -81,7 +156,7 @@ export const useUsers = () => {
     try {
       await api.delete(`/user/${id}`);
       message.success('Usuário removido!');
-      getUsers();
+      await invalidateAndRefetch();
     } catch (error) {
       message.error(getApiErrorMessage('Erro ao deletar usuário', error));
     }
@@ -89,6 +164,7 @@ export const useUsers = () => {
 
   return {
     users,
+    meta,
     loading,
     getUsers,
     getUserById,

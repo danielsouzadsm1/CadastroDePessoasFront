@@ -4,14 +4,22 @@ import { User } from '@/hooks/useUsers';
 import { FaRegTrashAlt, FaEdit } from 'react-icons/fa';
 import dayjs from 'dayjs';
 
+interface UserTablePagination {
+  current: number;
+  pageSize: number;
+  total: number;
+  onChange: (page: number) => void;
+}
+
 interface UserTableProps {
   data: User[];
   loading: boolean;
   onEdit: (user: User) => void;
   onDelete: (id: number) => void;
+  pagination: UserTablePagination;
 }
 
-export const UserTable = ({ data, loading, onEdit, onDelete }: UserTableProps) => {
+export const UserTable = ({ data, loading, onEdit, onDelete, pagination }: UserTableProps) => {
   const handleDelete = (user: User) => {
     if (typeof user.id !== 'number') {
       return;
@@ -81,7 +89,13 @@ export const UserTable = ({ data, loading, onEdit, onDelete }: UserTableProps) =
       rowKey="id"
       bordered
       size="middle"
-      pagination={{ pageSize: 8, showSizeChanger: false }}
+      pagination={{
+        current: pagination.current,
+        pageSize: pagination.pageSize,
+        total: pagination.total,
+        showSizeChanger: false,
+        onChange: pagination.onChange,
+      }}
     />
   );
 };
